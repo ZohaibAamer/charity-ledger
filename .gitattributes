@@ -1,0 +1,6 @@
+# Ensure GitHub detects all languages properly
+*.py linguist-language=Python
+*.sql linguist-language=SQL
+*.yml linguist-language=YAML
+*.md linguist-language=Markdown linguist-documentation
+evidence/pages/*.md linguist-language=Markdown linguist-documentation=false
