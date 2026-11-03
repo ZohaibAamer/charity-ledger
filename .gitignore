@@ -1,0 +1,15 @@
+data/*.duckdb
+data/*.parquet
+data/raw/
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+node_modules/
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/logs/
+evidence/build/
+evidence/.evidence/
+.DS_Store
