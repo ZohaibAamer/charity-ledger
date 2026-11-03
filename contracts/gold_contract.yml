@@ -1,0 +1,39 @@
+name: gold_data_contract
+version: "1.0"
+description: >
+  Data contract for gold layer. Scorecard must produce exactly
+  one row per charity with a valid health score.
+
+tables:
+  charity_health_scorecard:
+    required_columns:
+      - charity_number
+      - charity_name
+      - health_score
+      - _loaded_at
+    constraints:
+      - charity_number is unique
+      - health_score between 0 and 100
+
+  charity_income_trend:
+    required_columns:
+      - charity_number
+      - financial_year_end
+      - total_income
+
+  charity_reserves_ratio:
+    required_columns:
+      - charity_number
+      - reserves_to_spending_ratio
+      - reserves_band
+    constraints:
+      - charity_number is unique
+      - reserves_band in (critically_low, low, adequate, healthy, high)
+
+  charity_grant_dependency:
+    required_columns:
+      - charity_number
+      - total_grants
+      - funder_concentration
+    constraints:
+      - charity_number is unique

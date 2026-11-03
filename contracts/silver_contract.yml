@@ -1,0 +1,41 @@
+name: silver_data_contract
+version: "1.0"
+description: >
+  Data contract for silver layer. Entity resolution must have
+  confidence scores. SCD2 tables must maintain temporal integrity.
+
+tables:
+  entity_resolution:
+    required_columns:
+      - entity_id
+      - charity_number
+      - charity_name
+      - company_match_confidence
+      - _loaded_at
+    constraints:
+      - entity_id is unique
+      - company_match_confidence between 0 and 1
+
+  scd2_trustees:
+    required_columns:
+      - surrogate_key
+      - charity_number
+      - trustee_id
+      - valid_from
+      - is_current
+    constraints:
+      - surrogate_key is unique
+      - valid_from <= coalesce(valid_to, current_timestamp)
+      - exactly one is_current=true per (charity_number, trustee_id)
+
+  scd2_finances:
+    required_columns:
+      - surrogate_key
+      - charity_number
+      - financial_year_end
+      - total_income
+      - valid_from
+      - is_current
+    constraints:
+      - surrogate_key is unique
+      - valid_from <= coalesce(valid_to, current_timestamp)
