@@ -5,7 +5,7 @@
         max(_extracted_at) as last_extracted,
         current_timestamp as checked_at,
         case
-            when max(_extracted_at) < current_timestamp - interval '{{ max_age_hours }}' hour
+            when max(_extracted_at) < current_timestamp - interval '{{ max_age_hours }} hours'
                 then 'STALE'
             else 'FRESH'
         end as status
