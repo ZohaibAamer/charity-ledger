@@ -1,6 +1,13 @@
-# Ensure GitHub detects all languages properly
+# Language detection for GitHub Linguist
 *.py linguist-language=Python
 *.sql linguist-language=SQL
-*.yml linguist-language=YAML
-*.md linguist-language=Markdown linguist-documentation
-evidence/pages/*.md linguist-language=Markdown linguist-documentation=false
+*.yml linguist-detectable
+*.md linguist-documentation
+
+# Ensure dbt SQL models are counted as code, not vendored
+dbt_project/models/**/*.sql linguist-vendored=false
+dbt_project/tests/**/*.sql linguist-vendored=false
+dbt_project/macros/**/*.sql linguist-vendored=false
+
+# Evidence pages are documentation
+evidence/pages/*.md linguist-documentation
