@@ -1,18 +1,24 @@
-"""Run all extractors in sequence.
+"""Pipeline entry point: run every extractor in sequence.
 
 API sources always run. Cloud storage sources (ADLS, S3, Snowflake)
-run only when their credentials are configured in the environment.
+run only when their credentials are present in the environment, so
+the same entry point serves local development and production.
 """
+
 from extract import charity_commission, companies_house, config, grantnav
+from extract.logging_setup import get_logger
+
+log = get_logger(__name__)
 
 
 def _run_cloud_sources() -> None:
+    """Ingest from whichever cloud backends have credentials configured."""
     ran_any = False
 
     if config.ADLS_STORAGE_ACCOUNT:
         from extract.connectors.adls import ingest_from_adls
 
-        print("\n[cloud] ADLS Gen2")
+        log.info("[cloud] ADLS Gen2")
         ingest_from_adls(
             storage_account=config.ADLS_STORAGE_ACCOUNT,
             container=config.ADLS_CONTAINER,
@@ -25,7 +31,7 @@ def _run_cloud_sources() -> None:
     if config.S3_BUCKET:
         from extract.connectors.s3 import ingest_from_s3
 
-        print("\n[cloud] Amazon S3")
+        log.info("[cloud] Amazon S3")
         ingest_from_s3(
             bucket=config.S3_BUCKET,
             key="companies_house/",
@@ -39,7 +45,7 @@ def _run_cloud_sources() -> None:
     if config.SNOWFLAKE_ACCOUNT:
         from extract.connectors.snowflake import ingest_from_snowflake
 
-        print("\n[cloud] Snowflake")
+        log.info("[cloud] Snowflake")
         ingest_from_snowflake(
             account=config.SNOWFLAKE_ACCOUNT,
             user=config.SNOWFLAKE_USER,
@@ -55,28 +61,24 @@ def _run_cloud_sources() -> None:
         ran_any = True
 
     if not ran_any:
-        print("\n[cloud] No cloud storage credentials configured; skipping")
+        log.info("[cloud] No cloud storage credentials configured; skipping")
 
 
-def main():
-    print("=" * 60)
-    print("CHARITY LEDGER - EXTRACTION PIPELINE")
-    print("=" * 60)
+def main() -> None:
+    log.info("CHARITY LEDGER - EXTRACTION PIPELINE")
 
-    print("\n[1/3] Charity Commission")
+    log.info("[1/3] Charity Commission")
     charity_commission.run()
 
-    print("\n[2/3] Companies House")
+    log.info("[2/3] Companies House")
     companies_house.run()
 
-    print("\n[3/3] 360Giving GrantNav")
+    log.info("[3/3] 360Giving GrantNav")
     grantnav.run()
 
     _run_cloud_sources()
 
-    print("\n" + "=" * 60)
-    print("All extractions complete.")
-    print("=" * 60)
+    log.info("All extractions complete")
 
 
 if __name__ == "__main__":
