@@ -5,8 +5,9 @@ API: enrichment for companies linked to charities (accounts filing dates, SIC co
 """
 import io
 import zipfile
-from datetime import datetime
+from datetime import datetime, timedelta
 
+import duckdb
 import httpx
 import polars as pl
 
@@ -19,7 +20,27 @@ from extract.loader import load_to_bronze, write_watermark
 
 SOURCE_NAME = "companies_house"
 
-BULK_URL = "https://download.companieshouse.gov.uk/BasicCompanyDataAsOneFile-2024-01-01.zip"
+BULK_URL_TEMPLATE = (
+    "https://download.companieshouse.gov.uk/BasicCompanyDataAsOneFile-{snapshot}.zip"
+)
+
+
+def _current_bulk_url() -> str:
+    """Companies House publishes a new snapshot on the 1st of each month.
+
+    Try the current month first; fall back to the previous month if the
+    current snapshot is not yet published.
+    """
+    today = datetime.utcnow().date()
+    current = today.replace(day=1)
+    prev = (current - timedelta(days=1)).replace(day=1)
+
+    for snapshot in (current, prev):
+        url = BULK_URL_TEMPLATE.format(snapshot=snapshot.isoformat())
+        resp = httpx.head(url, follow_redirects=True, timeout=30)
+        if resp.status_code == 200:
+            return url
+    raise RuntimeError("No Companies House bulk snapshot found for current or previous month")
 
 
 def _add_extract_metadata(df: pl.DataFrame) -> pl.DataFrame:
@@ -30,8 +51,9 @@ def _add_extract_metadata(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def extract_bulk() -> int:
-    print("Downloading Companies House bulk data...")
-    resp = httpx.get(BULK_URL, follow_redirects=True, timeout=600)
+    url = _current_bulk_url()
+    print(f"Downloading Companies House bulk data from {url}...")
+    resp = httpx.get(url, follow_redirects=True, timeout=600)
     resp.raise_for_status()
 
     with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
@@ -115,8 +137,35 @@ def enrich_charity_companies(company_numbers: list[str]) -> int:
     return len(profiles)
 
 
+def _resolved_company_numbers(limit: int = 500) -> list[str]:
+    """Company numbers already linked to charities by entity resolution.
+
+    Returns an empty list on the first run, before the silver layer exists.
+    """
+    from extract.loader import get_connection
+
+    con = get_connection()
+    try:
+        rows = con.execute(
+            "SELECT DISTINCT company_number FROM silver.entity_resolution "
+            "WHERE company_number IS NOT NULL LIMIT ?",
+            [limit],
+        ).fetchall()
+        return [r[0] for r in rows]
+    except duckdb.CatalogException:
+        print("Entity resolution table not found yet; skipping API enrichment")
+        return []
+    finally:
+        con.close()
+
+
 def run():
     extract_bulk()
+
+    company_numbers = _resolved_company_numbers()
+    if company_numbers:
+        enrich_charity_companies(company_numbers)
+
     write_watermark(SOURCE_NAME, datetime.utcnow().isoformat())
     print("Companies House extract complete.")
 

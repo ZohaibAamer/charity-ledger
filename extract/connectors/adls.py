@@ -7,7 +7,6 @@ from datetime import datetime
 
 import polars as pl
 
-from extract.config import RAW_DATA_PATH
 from extract.loader import load_to_bronze, write_watermark
 
 
