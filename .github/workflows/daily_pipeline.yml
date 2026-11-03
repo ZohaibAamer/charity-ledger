@@ -65,13 +65,9 @@ jobs:
         working-directory: dbt_project
         run: dbt deps
 
-      - name: Run dbt build
+      - name: Run dbt build (models + tests)
         working-directory: dbt_project
         run: dbt build --profiles-dir .
-
-      - name: Run dbt tests
-        working-directory: dbt_project
-        run: dbt test --profiles-dir .
 
       - name: Generate data quality report
         working-directory: dbt_project
@@ -106,14 +102,23 @@ jobs:
           path: data/
 
       - name: Generate quality report
-        run: python -c "
-          import duckdb, json
-          con = duckdb.connect('data/charity_ledger.duckdb')
-          scorecard = con.execute('SELECT count(*) as total, avg(health_score) as avg_score, min(health_score) as min_score, max(health_score) as max_score FROM gold.charity_health_scorecard').fetchdf()
-          print('=== CHARITY LEDGER QUALITY REPORT ===')
-          print(scorecard.to_string(index=False))
+        run: |
+          python <<'EOF'
+          import duckdb
+
+          con = duckdb.connect("data/charity_ledger.duckdb", read_only=True)
+          total, avg_score, min_score, max_score = con.execute(
+              "SELECT count(*), round(avg(health_score), 1), "
+              "min(health_score), max(health_score) "
+              "FROM gold.charity_health_scorecard"
+          ).fetchone()
           con.close()
-          "
+
+          print("=== CHARITY LEDGER QUALITY REPORT ===")
+          print(f"Charities scored: {total}")
+          print(f"Avg health score: {avg_score}")
+          print(f"Score range: {min_score} - {max_score}")
+          EOF
 
       - name: Create run summary
         run: |

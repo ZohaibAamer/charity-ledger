@@ -1,15 +1,16 @@
 name: bronze_data_contract
-version: "1.0"
+version: "1.1"
 description: >
   Data contract for bronze layer tables. These are raw extracts
-  with minimal transformation. All tables must include extraction
-  metadata columns.
+  with minimal transformation, so columns carry the source system's
+  own names. All tables must include extraction metadata columns.
 
 tables:
   cc_charities:
     required_columns:
-      - regno
-      - name
+      - registered_charity_number
+      - charity_name
+      - charity_registration_status
       - _extracted_at
       - _source
     freshness:
@@ -17,10 +18,10 @@ tables:
 
   cc_finances:
     required_columns:
-      - regno
-      - fyend
-      - income
-      - spending
+      - registered_charity_number
+      - fin_period_end_date
+      - total_gross_income
+      - total_gross_expenditure
       - _extracted_at
       - _source
     freshness:
@@ -28,8 +29,9 @@ tables:
 
   cc_trustees:
     required_columns:
-      - regno
+      - registered_charity_number
       - trustee_name
+      - individual_id
       - _extracted_at
       - _source
     freshness:
