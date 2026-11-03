@@ -13,7 +13,7 @@ models:
         tests:
           - not_null
       - name: company_match_confidence
-        description: "Confidence score: 1.0=exact, 0.8=partial, 0.5=SIC, 0.3=fuzzy"
+        description: "Confidence score: 1.0=exact name, 0.9=normalized name"
 
   - name: scd2_trustees
     description: SCD2 history of charity trustees with valid_from/valid_to
