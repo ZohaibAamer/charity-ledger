@@ -1,0 +1,46 @@
+version: 2
+
+models:
+  - name: charity_health_scorecard
+    description: >
+      Unified charity health scorecard combining income trends, reserves,
+      grant dependency, and filing timeliness into a 0-100 health score.
+    columns:
+      - name: charity_number
+        description: Primary identifier from the Charity Commission
+        tests:
+          - unique
+          - not_null
+      - name: health_score
+        description: "Composite score 0-100: income stability + reserves + diversification + compliance"
+
+  - name: charity_income_trend
+    description: Year-over-year income and spending trends per charity
+    columns:
+      - name: charity_number
+        tests:
+          - not_null
+
+  - name: charity_reserves_ratio
+    description: Reserves-to-spending ratio with risk banding
+    columns:
+      - name: charity_number
+        tests:
+          - unique
+          - not_null
+
+  - name: charity_grant_dependency
+    description: Grant income as share of total income with funder concentration
+    columns:
+      - name: charity_number
+        tests:
+          - unique
+          - not_null
+
+  - name: charity_filing_timeliness
+    description: Companies House filing due dates and overdue flags
+    columns:
+      - name: entity_id
+        tests:
+          - unique
+          - not_null
