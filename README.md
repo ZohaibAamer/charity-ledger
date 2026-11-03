@@ -1,7 +1,6 @@
 # UK Charity Financial Health Warehouse
 
 [![CI](https://github.com/ZohaibAamer/charity-ledger/actions/workflows/ci.yml/badge.svg)](https://github.com/ZohaibAamer/charity-ledger/actions/workflows/ci.yml)
-[![Pipeline](https://github.com/ZohaibAamer/charity-ledger/actions/workflows/daily_pipeline.yml/badge.svg)](https://github.com/ZohaibAamer/charity-ledger/actions/workflows/daily_pipeline.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![dbt](https://img.shields.io/badge/dbt-duckdb-orange.svg)](https://github.com/duckdb/dbt-duckdb)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -28,7 +27,7 @@
 |  EXTRACT  (Python, Polars, httpx)                                  |
 |  - Cloud connectors: ADLS Gen2, S3, Snowflake                      |
 |  - Incremental loads with watermark tracking                       |
-|  - Scheduled every 6 hours via GitHub Actions                      |
+|  - Run on demand via the Makefile pipeline targets                      |
 +---------------------------------+----------------------------------+
                                   v
 +--------------------------------------------------------------------+
@@ -82,7 +81,7 @@
 | **Extract** | Python 3.11+, Polars, httpx, adlfs, s3fs, connectorx |
 | **Transform** | dbt-core, dbt-duckdb, dbt_utils |
 | **Store** | DuckDB |
-| **Orchestrate** | GitHub Actions (every 6 hours) |
+| **Orchestrate** | Makefile targets, run on demand |
 | **Dashboard** | Evidence.dev |
 | **Data Quality** | dbt tests, data contracts, freshness checks |
 
