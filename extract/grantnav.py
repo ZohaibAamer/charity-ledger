@@ -14,6 +14,23 @@ from extract.loader import load_to_bronze, write_watermark
 SOURCE_NAME = "grantnav"
 
 
+def _flatten_columns(df: pl.DataFrame) -> pl.DataFrame:
+    """Flatten nested struct columns into underscore-separated names."""
+    flat_cols = []
+    for col in df.columns:
+        if df[col].dtype == pl.Struct:
+            unnested = df.select(pl.col(col).struct.unnest())
+            for sub_col in unnested.columns:
+                flat_cols.append(
+                    unnested[sub_col].alias(f"{col}_{sub_col}")
+                )
+        elif df[col].dtype == pl.List:
+            flat_cols.append(df[col].list.get(0).alias(col))
+        else:
+            flat_cols.append(df[col])
+    return pl.DataFrame(flat_cols)
+
+
 def _add_extract_metadata(df: pl.DataFrame) -> pl.DataFrame:
     return df.with_columns(
         pl.lit(datetime.utcnow().isoformat()).alias("_extracted_at"),
@@ -50,7 +67,8 @@ def _download_grants_json(url: str) -> pl.DataFrame | None:
         data = resp.json()
         grants = data.get("grants", data) if isinstance(data, dict) else data
         if isinstance(grants, list) and grants:
-            return pl.DataFrame(grants)
+            df = pl.from_dicts(grants)
+            return _flatten_columns(df)
         return None
     except Exception as e:
         print(f"  Skipping {url}: {e}")
