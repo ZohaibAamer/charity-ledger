@@ -1,5 +1,6 @@
 # UK Charity Financial Health Warehouse
 
+[![CI](https://github.com/ZohaibAamer/charity-ledger/actions/workflows/ci.yml/badge.svg)](https://github.com/ZohaibAamer/charity-ledger/actions/workflows/ci.yml)
 [![Pipeline](https://github.com/ZohaibAamer/charity-ledger/actions/workflows/daily_pipeline.yml/badge.svg)](https://github.com/ZohaibAamer/charity-ledger/actions/workflows/daily_pipeline.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![dbt](https://img.shields.io/badge/dbt-duckdb-orange.svg)](https://github.com/duckdb/dbt-duckdb)
@@ -16,48 +17,47 @@
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     DATA SOURCES                                │
-│  ┌──────────┐  ┌──────────────┐  ┌──────────┐  ┌────────────┐ │
-│  │   ADLS   │  │  Snowflake   │  │    S3    │  │  REST APIs │ │
-│  └────┬─────┘  └──────┬───────┘  └────┬─────┘  └─────┬──────┘ │
-└───────┼───────────────┼───────────────┼───────────────┼────────┘
-        │               │               │               │
-        ▼               ▼               ▼               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  EXTRACT (Python, Polars, httpx)                                │
-│  • Cloud connectors: ADLS Gen2, S3, Snowflake                  │
-│  • Incremental loads with watermark tracking                    │
-│  • Scheduled every 6 hours via GitHub Actions                   │
-└────────────────────────────┬────────────────────────────────────┘
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  BRONZE (dbt-duckdb)                                            │
-│  • Charity Commission register, finances, trustees              │
-│  • Companies House bulk data + API profiles                     │
-│  • 360Giving GrantNav grant records                             │
-└────────────────────────────┬────────────────────────────────────┘
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  SILVER (dbt-duckdb)                                            │
-│  • Entity resolution: charity ↔ company ↔ grant recipient      │
-│  • Match confidence scores (exact, partial, SIC, fuzzy)         │
-│  • SCD2 history on trustees and finances                        │
-└────────────────────────────┬────────────────────────────────────┘
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  GOLD (dbt-duckdb)                                              │
-│  • Income trend (YoY growth)                                    │
-│  • Reserves ratio (months cover, risk banding)                  │
-│  • Grant dependency (funder concentration)                      │
-│  • Filing timeliness (overdue detection)                        │
-│  • Health Scorecard (0-100 composite)                           │
-└────────────────────────────┬────────────────────────────────────┘
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  DASHBOARD (Evidence.dev)                                       │
-│  Scorecard │ Income │ Reserves │ Grants │ Filings │ Quality    │
-└─────────────────────────────────────────────────────────────────┘
++--------------------------------------------------------------------+
+|                            DATA SOURCES                            |
+|    +----------+   +-----------+   +----------+   +-----------+     |
+|    |   ADLS   |   | Snowflake |   |    S3    |   | REST APIs |     |
+|    +-----+----+   +-----+-----+   +-----+----+   +-----+-----+     |
++----------|--------------|---------------|--------------|-----------+
+           v              v               v              v
++--------------------------------------------------------------------+
+|  EXTRACT  (Python, Polars, httpx)                                  |
+|  - Cloud connectors: ADLS Gen2, S3, Snowflake                      |
+|  - Incremental loads with watermark tracking                       |
+|  - Scheduled every 6 hours via GitHub Actions                      |
++---------------------------------+----------------------------------+
+                                  v
++--------------------------------------------------------------------+
+|  BRONZE  (dbt-duckdb)                                              |
+|  - Charity Commission register, finances, trustees                 |
+|  - Companies House bulk data + API profiles                        |
+|  - 360Giving GrantNav grant records                                |
++---------------------------------+----------------------------------+
+                                  v
++--------------------------------------------------------------------+
+|  SILVER  (dbt-duckdb)                                              |
+|  - Entity resolution: charity <-> company <-> grant recipient      |
+|  - Match confidence scores (exact / normalized name)               |
+|  - SCD2 history on trustees and finances                           |
++---------------------------------+----------------------------------+
+                                  v
++--------------------------------------------------------------------+
+|  GOLD  (dbt-duckdb)                                                |
+|  - Income trend (YoY growth)                                       |
+|  - Reserves ratio (months cover, risk banding)                     |
+|  - Grant dependency (funder concentration)                         |
+|  - Filing timeliness (overdue detection)                           |
+|  - Health scorecard (0-100 composite)                              |
++---------------------------------+----------------------------------+
+                                  v
++--------------------------------------------------------------------+
+|  DASHBOARD  (Evidence.dev)                                         |
+|  Scorecard | Income | Reserves | Grants | Filings | Quality        |
++--------------------------------------------------------------------+
 ```
 
 ## Data Sources & Connectors
