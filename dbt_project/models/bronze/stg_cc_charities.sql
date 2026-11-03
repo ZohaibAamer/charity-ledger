@@ -3,20 +3,18 @@ with source as (
 )
 
 select
-    cast("regno" as varchar)                         as charity_number,
-    cast("subno" as integer)                         as subsidiary_number,
-    "name"                                           as charity_name,
-    "orgtype"                                        as organisation_type,
-    "aession"                                        as activities,
-    "gd"                                             as governing_document,
-    "aession"                                        as objects,
-    cast("regy" as varchar)                          as registration_date,
-    cast("rmd" as varchar)                           as removal_date,
-    "remcode"                                        as removal_reason,
-    cast("fyend" as varchar)                         as financial_year_end,
-    cast("welsh" as boolean)                         as is_welsh,
-    cast("incomelatestfinan" as double)              as latest_income,
-    cast("expendlatestfinan" as double)              as latest_expenditure,
+    cast("registered_charity_number" as varchar)     as charity_number,
+    cast("linked_charity_number" as integer)         as subsidiary_number,
+    "charity_name"                                   as charity_name,
+    "charity_type"                                   as organisation_type,
+    "charity_activities"                              as activities,
+    "charity_objects"                                 as objects,
+    "charity_governing_document"                     as governing_document,
+    cast("date_of_registration" as varchar)          as registration_date,
+    cast("date_of_removal" as varchar)               as removal_date,
+    "charity_registration_status"                    as registration_status,
+    cast("latest_income" as double)                  as latest_income,
+    cast("latest_expenditure" as double)             as latest_expenditure,
     "_extracted_at",
     "_source"
 from source

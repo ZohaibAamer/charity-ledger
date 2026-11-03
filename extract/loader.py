@@ -17,20 +17,21 @@ def load_to_bronze(df: pl.DataFrame, table_name: str, mode: str = "replace") -> 
     con = get_connection()
     schema = "bronze"
     con.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+    con.register("df_view", df)
 
     full_table = f"{schema}.{table_name}"
 
     if mode == "replace":
         con.execute(f"DROP TABLE IF EXISTS {full_table}")
         con.execute(
-            f"CREATE TABLE {full_table} AS SELECT * FROM df"
+            f"CREATE TABLE {full_table} AS SELECT * FROM df_view"
         )
     elif mode == "append":
         try:
-            con.execute(f"INSERT INTO {full_table} SELECT * FROM df")
+            con.execute(f"INSERT INTO {full_table} SELECT * FROM df_view")
         except duckdb.CatalogException:
             con.execute(
-                f"CREATE TABLE {full_table} AS SELECT * FROM df"
+                f"CREATE TABLE {full_table} AS SELECT * FROM df_view"
             )
 
     count = con.execute(f"SELECT count(*) FROM {full_table}").fetchone()[0]
@@ -41,6 +42,7 @@ def load_to_bronze(df: pl.DataFrame, table_name: str, mode: str = "replace") -> 
 def read_watermark(source_name: str) -> str | None:
     """Read the last-loaded watermark for incremental loads."""
     con = get_connection()
+    con.execute("CREATE SCHEMA IF NOT EXISTS meta")
     con.execute(
         "CREATE TABLE IF NOT EXISTS meta.watermarks "
         "(source_name VARCHAR PRIMARY KEY, watermark VARCHAR, updated_at TIMESTAMP DEFAULT current_timestamp)"
