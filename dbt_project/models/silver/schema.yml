@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: entity_resolution
+    description: Unified entity map linking charities, companies, and grant recipients
+    columns:
+      - name: entity_id
+        description: Surrogate key for the charity-company entity
+        tests:
+          - unique
+          - not_null
+      - name: charity_number
+        tests:
+          - not_null
+      - name: company_match_confidence
+        description: "Confidence score: 1.0=exact, 0.8=partial, 0.5=SIC, 0.3=fuzzy"
+
+  - name: scd2_trustees
+    description: SCD2 history of charity trustees with valid_from/valid_to
+    columns:
+      - name: surrogate_key
+        tests:
+          - unique
+          - not_null
+      - name: charity_number
+        tests:
+          - not_null
+
+  - name: scd2_finances
+    description: SCD2 history of charity annual financial returns
+    columns:
+      - name: surrogate_key
+        tests:
+          - unique
+          - not_null
+      - name: charity_number
+        tests:
+          - not_null
+
+  - name: int_grants_enriched
+    description: Grants enriched with entity resolution matches
+    columns:
+      - name: grant_id
+        tests:
+          - not_null
