@@ -1,0 +1,14 @@
+{
+  "name": "charity-ledger-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "evidence dev",
+    "build": "evidence build",
+    "preview": "evidence preview"
+  },
+  "dependencies": {
+    "@evidence-dev/evidence": "latest",
+    "@evidence-dev/duckdb": "latest"
+  }
+}

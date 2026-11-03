@@ -1,0 +1,4 @@
+name: charity_ledger
+type: duckdb
+options:
+  filename: ../../../data/charity_ledger.duckdb
