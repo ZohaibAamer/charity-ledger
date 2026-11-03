@@ -1,0 +1,20 @@
+version: 2
+
+sources:
+  - name: bronze
+    schema: bronze
+    tables:
+      - name: cc_charities
+        description: Charity Commission register bulk extract
+      - name: cc_finances
+        description: Charity Commission annual return financial data
+      - name: cc_trustees
+        description: Charity Commission trustee records
+      - name: ch_companies
+        description: Companies House basic company data bulk extract
+      - name: ch_profiles
+        description: Companies House API company profiles
+      - name: ch_filings
+        description: Companies House API filing history
+      - name: gn_grants
+        description: 360Giving GrantNav grant records
