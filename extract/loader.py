@@ -5,7 +5,7 @@ hand it Polars DataFrames; it owns schema creation, lineage columns,
 and the incremental-load watermark table (``meta.watermarks``).
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import duckdb
 import polars as pl
@@ -25,7 +25,7 @@ _WATERMARKS_DDL = (
 
 def utc_now_iso() -> str:
     """Current UTC time as an ISO-8601 string, used for lineage stamps."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def get_connection() -> duckdb.DuckDBPyConnection:

@@ -11,7 +11,7 @@ Two paths into the warehouse:
 
 import io
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import duckdb
 import httpx
@@ -51,7 +51,7 @@ def _current_bulk_url() -> str:
     publication time varies, so early in the month only the previous
     snapshot may exist.
     """
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     current = today.replace(day=1)
     previous = (current - timedelta(days=1)).replace(day=1)
 

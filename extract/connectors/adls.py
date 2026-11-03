@@ -1,13 +1,23 @@
 """Azure Data Lake Storage Gen2 connector.
 
-Reads Parquet and Delta tables from ADLS containers using
-Azure identity credentials or connection strings.
+Reads Parquet files or Delta tables from an ADLS container into the
+bronze layer. Authenticates with an account key when one is supplied,
+otherwise falls back to the ambient Azure CLI login.
 """
-from datetime import datetime
 
 import polars as pl
 
-from extract.loader import load_to_bronze, write_watermark
+from extract.loader import add_extract_metadata, load_to_bronze, utc_now_iso, write_watermark
+from extract.logging_setup import get_logger
+
+log = get_logger(__name__)
+
+
+def _storage_options(storage_account: str, credential: str | None) -> dict[str, str]:
+    """Build fsspec storage options for key-based or CLI-based auth."""
+    if credential:
+        return {"account_name": storage_account, "account_key": credential}
+    return {"account_name": storage_account, "use_azure_cli": "true"}
 
 
 def read_parquet_from_adls(
@@ -17,13 +27,8 @@ def read_parquet_from_adls(
     credential: str | None = None,
 ) -> pl.DataFrame:
     """Read a Parquet file or directory from ADLS Gen2."""
-    if credential:
-        storage_options = {"account_name": storage_account, "account_key": credential}
-    else:
-        storage_options = {"account_name": storage_account, "use_azure_cli": "true"}
-
     uri = f"az://{container}/{path}"
-    return pl.read_parquet(uri, storage_options=storage_options)
+    return pl.read_parquet(uri, storage_options=_storage_options(storage_account, credential))
 
 
 def read_delta_from_adls(
@@ -33,13 +38,8 @@ def read_delta_from_adls(
     credential: str | None = None,
 ) -> pl.DataFrame:
     """Read a Delta Lake table from ADLS Gen2."""
-    if credential:
-        storage_options = {"account_name": storage_account, "account_key": credential}
-    else:
-        storage_options = {"account_name": storage_account, "use_azure_cli": "true"}
-
     uri = f"az://{container}/{path}"
-    return pl.read_delta(uri, storage_options=storage_options)
+    return pl.read_delta(uri, storage_options=_storage_options(storage_account, credential))
 
 
 def ingest_from_adls(
@@ -50,20 +50,20 @@ def ingest_from_adls(
     credential: str | None = None,
     file_format: str = "parquet",
 ) -> int:
-    """Ingest data from ADLS into a bronze table."""
-    print(f"Reading from adls://{storage_account}/{container}/{path}...")
+    """Ingest an ADLS dataset into ``bronze.<table_name>``.
 
-    if file_format == "delta":
-        df = read_delta_from_adls(storage_account, container, path, credential)
-    else:
-        df = read_parquet_from_adls(storage_account, container, path, credential)
+    Args:
+        file_format: ``parquet`` (default) or ``delta``.
 
-    df = df.with_columns(
-        pl.lit(datetime.utcnow().isoformat()).alias("_extracted_at"),
-        pl.lit(f"adls://{storage_account}/{container}").alias("_source"),
-    )
+    Returns the number of rows loaded.
+    """
+    log.info("Reading adls://%s/%s/%s", storage_account, container, path)
+
+    reader = read_delta_from_adls if file_format == "delta" else read_parquet_from_adls
+    df = reader(storage_account, container, path, credential)
+    df = add_extract_metadata(df, f"adls://{storage_account}/{container}")
 
     count = load_to_bronze(df, table_name)
-    write_watermark(f"adls_{table_name}", datetime.utcnow().isoformat())
-    print(f"Loaded {count:,} rows from ADLS into {table_name}")
+    write_watermark(f"adls_{table_name}", utc_now_iso())
+    log.info("Loaded %s rows from ADLS into bronze.%s", f"{count:,}", table_name)
     return count
