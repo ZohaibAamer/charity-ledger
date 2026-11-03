@@ -1,0 +1,7 @@
+charity_ledger:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "../data/charity_ledger.duckdb"
+      threads: 4
