@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: stg_cc_charities
+    description: Staged Charity Commission charity register data
+    columns:
+      - name: charity_number
+        tests:
+          - not_null
+
+  - name: stg_cc_finances
+    description: Staged Charity Commission annual financial returns
+    columns:
+      - name: charity_number
+        tests:
+          - not_null
+
+  - name: stg_cc_trustees
+    description: Staged Charity Commission trustee records
+    columns:
+      - name: charity_number
+        tests:
+          - not_null
+
+  - name: stg_ch_companies
+    description: Staged Companies House basic company data
+    columns:
+      - name: company_number
+        tests:
+          - not_null
+
+  - name: stg_gn_grants
+    description: Staged 360Giving GrantNav grant records
+    columns:
+      - name: grant_id
+        tests:
+          - not_null
