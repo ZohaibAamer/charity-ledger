@@ -44,8 +44,8 @@ select
     co.company_status,
     co.accounts_category,
     current_timestamp as _loaded_at
-from entities e
-inner join companies co
+from entities as e
+inner join companies as co
     on e.company_number = co.company_number
-inner join charities c
+inner join charities as c
     on e.charity_number = c.charity_number

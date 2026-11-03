@@ -29,23 +29,26 @@ charity_company_match as (
         case
             when lower(co.company_name) = lower(c.charity_name)
                 then 1.0
-            when lower(replace(co.company_name, ' ', ''))
-                 = lower(replace(c.charity_name, ' ', ''))
+            when
+                lower(replace(co.company_name, ' ', ''))
+                = lower(replace(c.charity_name, ' ', ''))
                 then 0.9
             else 0.7
         end as match_confidence,
         case
             when lower(co.company_name) = lower(c.charity_name)
                 then 'exact_name'
-            when lower(replace(co.company_name, ' ', ''))
-                 = lower(replace(c.charity_name, ' ', ''))
+            when
+                lower(replace(co.company_name, ' ', ''))
+                = lower(replace(c.charity_name, ' ', ''))
                 then 'normalized_name'
             else 'other'
         end as match_method
-    from charities c
-    inner join companies co
-        on lower(replace(co.company_name, ' ', ''))
-         = lower(replace(c.charity_name, ' ', ''))
+    from charities as c
+    inner join companies as co
+        on
+            lower(replace(co.company_name, ' ', ''))
+            = lower(replace(c.charity_name, ' ', ''))
 ),
 
 -- Deduplicate: keep the best company match per charity
@@ -56,7 +59,7 @@ best_company_match as (
             *,
             row_number() over (
                 partition by charity_number
-                order by match_confidence desc, company_number
+                order by match_confidence desc, company_number asc
             ) as rn
         from charity_company_match
     )
@@ -89,8 +92,8 @@ select
     coalesce(gc.grant_count, 0) as grant_count,
     gc.best_grant_match_confidence,
     current_timestamp as _loaded_at
-from charities c
-left join best_company_match bcm
+from charities as c
+left join best_company_match as bcm
     on c.charity_number = bcm.charity_number
-left join grant_counts gc
+left join grant_counts as gc
     on c.charity_number = gc.charity_number

@@ -32,6 +32,6 @@ select
     e.company_number as matched_company_number,
     e.best_grant_match_confidence,
     current_timestamp as _loaded_at
-from grants g
-left join entities e
+from grants as g
+left join entities as e
     on g.recipient_charity_number = e.charity_number

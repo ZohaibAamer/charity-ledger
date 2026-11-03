@@ -39,7 +39,6 @@ select
     case
         when prev_year_income is not null and prev_year_income > 0
             then round((total_income - prev_year_income) / prev_year_income * 100, 1)
-        else null
     end as income_growth_pct,
     recency_rank,
     current_timestamp as _loaded_at

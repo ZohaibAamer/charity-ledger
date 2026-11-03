@@ -1,7 +1,8 @@
 [sqlfluff]
 dialect = duckdb
 templater = jinja
-max_line_length = 100
+# 120 accommodates dbt_utils macro invocations on one line
+max_line_length = 120
 exclude_rules = ambiguous.column_count, structure.column_order
 
 [sqlfluff:indentation]
@@ -22,3 +23,4 @@ capitalisation_policy = lower
 
 [sqlfluff:templater:jinja]
 apply_dbt_builtins = True
+library_path = .sqlfluff_libs

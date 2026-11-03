@@ -19,9 +19,10 @@ with latest_finances as (
             order by financial_year_end desc
         ) as rn
     from {{ ref('scd2_finances') }}
-    where is_current = true
-      and total_spending is not null
-      and total_spending > 0
+    where
+        is_current = true
+        and total_spending is not null
+        and total_spending > 0
 )
 
 select
@@ -44,5 +45,6 @@ select
     end as reserves_band,
     current_timestamp as _loaded_at
 from latest_finances
-where rn = 1
-  and reserves is not null
+where
+    rn = 1
+    and reserves is not null

@@ -20,9 +20,10 @@ latest_finances as (
             order by financial_year_end desc
         ) as rn
     from {{ ref('scd2_finances') }}
-    where is_current = true
-      and total_income is not null
-      and total_income > 0
+    where
+        is_current = true
+        and total_income is not null
+        and total_income > 0
 ),
 
 grant_summary as (
@@ -53,7 +54,6 @@ select
     case
         when lf.total_income is not null and lf.total_income > 0
             then round(gs.total_grant_income / lf.total_income * 100, 1)
-        else null
     end as grant_dependency_pct,
     case
         when gs.unique_funders = 1 then 'single_funder'
@@ -62,7 +62,8 @@ select
         else 'highly_diversified'
     end as funder_concentration,
     current_timestamp as _loaded_at
-from grant_summary gs
-left join latest_finances lf
-    on gs.charity_number = lf.charity_number
-    and lf.rn = 1
+from grant_summary as gs
+left join latest_finances as lf
+    on
+        gs.charity_number = lf.charity_number
+        and lf.rn = 1

@@ -104,21 +104,24 @@ select
         end
         -- Filing compliance (0-25)
         + case
-            when f.accounts_filing_status = 'overdue'
-              or f.returns_filing_status = 'overdue' then 5
-            when f.accounts_filing_status = 'due_soon'
-              or f.returns_filing_status = 'due_soon' then 15
-            when f.accounts_filing_status = 'on_track'
-              and f.returns_filing_status = 'on_track' then 25
+            when
+                f.accounts_filing_status = 'overdue'
+                or f.returns_filing_status = 'overdue' then 5
+            when
+                f.accounts_filing_status = 'due_soon'
+                or f.returns_filing_status = 'due_soon' then 15
+            when
+                f.accounts_filing_status = 'on_track'
+                and f.returns_filing_status = 'on_track' then 25
             else 15
         end
     ) as health_score,
 
     current_timestamp as _loaded_at
 
-from charities c
-left join entities e on c.charity_number = e.charity_number
-left join income i on c.charity_number = i.charity_number
-left join reserves r on c.charity_number = r.charity_number
-left join grants g on c.charity_number = g.charity_number
-left join filings f on c.charity_number = f.charity_number
+from charities as c
+left join entities as e on c.charity_number = e.charity_number
+left join income as i on c.charity_number = i.charity_number
+left join reserves as r on c.charity_number = r.charity_number
+left join grants as g on c.charity_number = g.charity_number
+left join filings as f on c.charity_number = f.charity_number
