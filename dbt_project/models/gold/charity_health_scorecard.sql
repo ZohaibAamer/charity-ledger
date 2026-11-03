@@ -86,11 +86,12 @@ select
         end
         -- Reserves health (0-25)
         + case
-            when r.reserves_band = 'high' then 20
+            when r.reserves_band = 'high' then 25
             when r.reserves_band = 'healthy' then 25
             when r.reserves_band = 'adequate' then 20
             when r.reserves_band = 'low' then 10
             when r.reserves_band = 'critically_low' then 5
+            when r.reserves_band = 'negative' then 0
             else 12
         end
         -- Funder diversification (0-25)

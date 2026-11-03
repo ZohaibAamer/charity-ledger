@@ -28,7 +28,7 @@ tables:
       - reserves_band
     constraints:
       - charity_number is unique
-      - reserves_band in (critically_low, low, adequate, healthy, high)
+      - reserves_band in (negative, critically_low, low, adequate, healthy, high)
 
   charity_grant_dependency:
     required_columns:

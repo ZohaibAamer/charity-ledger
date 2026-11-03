@@ -35,6 +35,7 @@ select
     round(reserves / total_spending, 2) as reserves_to_spending_ratio,
     round(reserves / total_spending * 12, 1) as reserves_months_cover,
     case
+        when reserves < 0 then 'negative'
         when reserves / total_spending < 0.25 then 'critically_low'
         when reserves / total_spending < 0.5 then 'low'
         when reserves / total_spending < 1.0 then 'adequate'

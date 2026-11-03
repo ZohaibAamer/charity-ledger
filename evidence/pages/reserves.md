@@ -14,6 +14,7 @@ from gold.charity_reserves_ratio
 group by reserves_band
 order by
     case reserves_band
+        when 'negative' then 0
         when 'critically_low' then 1
         when 'low' then 2
         when 'adequate' then 3
