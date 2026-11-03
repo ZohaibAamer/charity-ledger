@@ -10,6 +10,11 @@ dependencies = [
     "dbt-duckdb>=1.8",
     "httpx>=0.27",
     "python-dotenv>=1.0",
+    "adlfs>=2024.2",
+    "s3fs>=2024.2",
+    "deltalake>=0.18",
+    "connectorx>=0.3",
+    "snowflake-connector-python>=3.6",
 ]
 
 [project.optional-dependencies]
@@ -17,6 +22,15 @@ dev = [
     "ruff>=0.6",
     "pytest>=8.0",
 ]
+
+[project.optional-dependencies.snowflake]
+snowflake = ["snowflake-connector-python>=3.6"]
+
+[project.optional-dependencies.azure]
+azure = ["adlfs>=2024.2", "azure-identity>=1.15"]
+
+[project.optional-dependencies.aws]
+aws = ["s3fs>=2024.2", "boto3>=1.34"]
 
 [tool.ruff]
 target-version = "py311"
