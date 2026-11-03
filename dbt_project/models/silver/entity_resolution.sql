@@ -52,17 +52,19 @@ charity_company_match as (
 ),
 
 -- Deduplicate: keep the best company match per charity
+ranked_company_match as (
+    select
+        *,
+        row_number() over (
+            partition by charity_number
+            order by match_confidence desc, company_number asc
+        ) as rn
+    from charity_company_match
+),
+
 best_company_match as (
     select *
-    from (
-        select
-            *,
-            row_number() over (
-                partition by charity_number
-                order by match_confidence desc, company_number asc
-            ) as rn
-        from charity_company_match
-    )
+    from ranked_company_match
     where rn = 1
 ),
 

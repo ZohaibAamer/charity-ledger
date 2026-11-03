@@ -35,6 +35,11 @@ all = [
     "charity-ledger[snowflake,azure,aws]",
 ]
 
+[tool.setuptools]
+# Only `extract` is an installable package; dbt_project, evidence and
+# contracts are tooling directories that flat-layout discovery must skip.
+packages = ["extract", "extract.connectors"]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
