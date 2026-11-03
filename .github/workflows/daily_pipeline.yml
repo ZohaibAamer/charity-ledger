@@ -1,0 +1,124 @@
+name: Daily Data Pipeline
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # 6am UTC daily
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.11'
+  DUCKDB_PATH: data/charity_ledger.duckdb
+  RAW_DATA_PATH: data/raw
+
+jobs:
+  extract:
+    name: Extract data sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      - name: Create data directory
+        run: mkdir -p data/raw
+
+      - name: Run extractions
+        env:
+          COMPANIES_HOUSE_API_KEY: ${{ secrets.COMPANIES_HOUSE_API_KEY }}
+        run: python -m extract.run_all
+
+      - name: Upload DuckDB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: duckdb-warehouse
+          path: data/charity_ledger.duckdb
+          retention-days: 7
+
+  transform:
+    name: dbt build and test
+    needs: extract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      - name: Download DuckDB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: duckdb-warehouse
+          path: data/
+
+      - name: Install dbt packages
+        working-directory: dbt_project
+        run: dbt deps
+
+      - name: Run dbt build
+        working-directory: dbt_project
+        run: dbt build --profiles-dir .
+
+      - name: Run dbt tests
+        working-directory: dbt_project
+        run: dbt test --profiles-dir .
+
+      - name: Generate data quality report
+        working-directory: dbt_project
+        run: dbt run-operation generate_data_quality_report --profiles-dir .
+
+      - name: Upload transformed DuckDB
+        uses: actions/upload-artifact@v4
+        with:
+          name: duckdb-transformed
+          path: data/charity_ledger.duckdb
+          retention-days: 30
+
+  quality-report:
+    name: Publish quality report
+    needs: transform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      - name: Download transformed DuckDB
+        uses: actions/download-artifact@v4
+        with:
+          name: duckdb-transformed
+          path: data/
+
+      - name: Generate quality report
+        run: python -c "
+          import duckdb, json
+          con = duckdb.connect('data/charity_ledger.duckdb')
+          scorecard = con.execute('SELECT count(*) as total, avg(health_score) as avg_score, min(health_score) as min_score, max(health_score) as max_score FROM gold.charity_health_scorecard').fetchdf()
+          print('=== CHARITY LEDGER QUALITY REPORT ===')
+          print(scorecard.to_string(index=False))
+          con.close()
+          "
+
+      - name: Create run summary
+        run: |
+          echo "## Daily Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run date**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifacts**: DuckDB warehouse uploaded (30-day retention)" >> $GITHUB_STEP_SUMMARY
