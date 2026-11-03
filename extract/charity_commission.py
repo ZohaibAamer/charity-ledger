@@ -1,11 +1,13 @@
-"""Extract Charity Commission register data from bulk ZIP downloads.
+"""Charity Commission register extractor.
 
-Loads charity details, annual financial returns, and trustee data
-into bronze tables in DuckDB.
+The Commission publishes daily bulk ZIP extracts of the full register.
+Three datasets feed the warehouse: charity details, annual return
+finances, and trustees. Each lands in its own bronze table.
 """
+
 import io
 import zipfile
-from datetime import datetime
+from pathlib import Path
 
 import httpx
 import polars as pl
@@ -16,14 +18,29 @@ from extract.config import (
     CHARITY_COMMISSION_TRUSTEES_URL,
     RAW_DATA_PATH,
 )
-from extract.loader import load_to_bronze, write_watermark
+from extract.loader import add_extract_metadata, load_to_bronze, utc_now_iso, write_watermark
+from extract.logging_setup import get_logger
+
+log = get_logger(__name__)
 
 SOURCE_NAME = "charity_commission"
 
+# (bulk URL, bronze table name) for each published dataset
+DATASETS = [
+    (CHARITY_COMMISSION_BULK_URL, "cc_charities"),
+    (CHARITY_COMMISSION_FINANCES_URL, "cc_finances"),
+    (CHARITY_COMMISSION_TRUSTEES_URL, "cc_trustees"),
+]
 
-def _download_and_extract_csv(url: str, cache_dir=None) -> pl.DataFrame:
-    """Download a ZIP file containing a single CSV and return as DataFrame."""
-    print(f"Downloading {url}...")
+
+def _download_and_extract_csv(url: str, cache_dir: Path | None = None) -> pl.DataFrame:
+    """Download a ZIP containing one CSV and return it as a DataFrame.
+
+    When ``cache_dir`` is given, the parsed frame is also cached locally
+    as Parquet so a failed downstream step can be replayed without
+    re-downloading.
+    """
+    log.info("Downloading %s", url)
     resp = httpx.get(url, follow_redirects=True, timeout=300)
     resp.raise_for_status()
 
@@ -41,56 +58,28 @@ def _download_and_extract_csv(url: str, cache_dir=None) -> pl.DataFrame:
 
     if cache_dir:
         cache_dir.mkdir(parents=True, exist_ok=True)
-        path = cache_dir / csv_names[0]
-        df.write_parquet(path.with_suffix(".parquet"))
-        print(f"  Cached to {path.with_suffix('.parquet')}")
+        cache_path = (cache_dir / csv_names[0]).with_suffix(".parquet")
+        df.write_parquet(cache_path)
+        log.debug("Cached raw extract to %s", cache_path)
 
     return df
 
 
-def _add_extract_metadata(df: pl.DataFrame) -> pl.DataFrame:
-    return df.with_columns(
-        pl.lit(datetime.utcnow().isoformat()).alias("_extracted_at"),
-        pl.lit(SOURCE_NAME).alias("_source"),
-    )
-
-
-def extract_charities() -> int:
-    df = _download_and_extract_csv(
-        CHARITY_COMMISSION_BULK_URL, RAW_DATA_PATH / SOURCE_NAME
-    )
-    df = _add_extract_metadata(df)
-    count = load_to_bronze(df, "cc_charities")
-    print(f"Loaded {count:,} charities")
+def extract_dataset(url: str, table_name: str) -> int:
+    """Download one bulk dataset and load it into its bronze table."""
+    df = _download_and_extract_csv(url, RAW_DATA_PATH / SOURCE_NAME)
+    df = add_extract_metadata(df, SOURCE_NAME)
+    count = load_to_bronze(df, table_name)
+    log.info("Loaded %s rows into bronze.%s", f"{count:,}", table_name)
     return count
 
 
-def extract_finances() -> int:
-    df = _download_and_extract_csv(
-        CHARITY_COMMISSION_FINANCES_URL, RAW_DATA_PATH / SOURCE_NAME
-    )
-    df = _add_extract_metadata(df)
-    count = load_to_bronze(df, "cc_finances")
-    print(f"Loaded {count:,} financial records")
-    return count
-
-
-def extract_trustees() -> int:
-    df = _download_and_extract_csv(
-        CHARITY_COMMISSION_TRUSTEES_URL, RAW_DATA_PATH / SOURCE_NAME
-    )
-    df = _add_extract_metadata(df)
-    count = load_to_bronze(df, "cc_trustees")
-    print(f"Loaded {count:,} trustee records")
-    return count
-
-
-def run():
-    extract_charities()
-    extract_finances()
-    extract_trustees()
-    write_watermark(SOURCE_NAME, datetime.utcnow().isoformat())
-    print("Charity Commission extract complete.")
+def run() -> None:
+    """Extract all three Charity Commission datasets."""
+    for url, table_name in DATASETS:
+        extract_dataset(url, table_name)
+    write_watermark(SOURCE_NAME, utc_now_iso())
+    log.info("Charity Commission extract complete")
 
 
 if __name__ == "__main__":

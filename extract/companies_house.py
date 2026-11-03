@@ -1,11 +1,17 @@
-"""Extract Companies House data via bulk download and REST API.
+"""Companies House extractor.
 
-Bulk: monthly snapshot of basic company data.
-API: enrichment for companies linked to charities (accounts filing dates, SIC codes).
+Two paths into the warehouse:
+
+* **Bulk**: the monthly "basic company data" snapshot, republished on
+  the 1st of each month, loaded in full into ``bronze.ch_companies``.
+* **API**: per-company enrichment (profile + filing history) for the
+  companies that entity resolution has already linked to charities.
+  Requires a free API key; skipped gracefully without one.
 """
+
 import io
 import zipfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import duckdb
 import httpx
@@ -16,7 +22,16 @@ from extract.config import (
     COMPANIES_HOUSE_BASE_URL,
     RAW_DATA_PATH,
 )
-from extract.loader import load_to_bronze, write_watermark
+from extract.loader import (
+    add_extract_metadata,
+    get_connection,
+    load_to_bronze,
+    utc_now_iso,
+    write_watermark,
+)
+from extract.logging_setup import get_logger
+
+log = get_logger(__name__)
 
 SOURCE_NAME = "companies_house"
 
@@ -24,18 +39,23 @@ BULK_URL_TEMPLATE = (
     "https://download.companieshouse.gov.uk/BasicCompanyDataAsOneFile-{snapshot}.zip"
 )
 
+# How many charity-linked companies to enrich per run; keeps the free
+# API tier's rate limit (600 req / 5 min) comfortable.
+ENRICHMENT_BATCH_SIZE = 500
+
 
 def _current_bulk_url() -> str:
-    """Companies House publishes a new snapshot on the 1st of each month.
+    """Resolve this month's bulk snapshot URL, falling back one month.
 
-    Try the current month first; fall back to the previous month if the
-    current snapshot is not yet published.
+    Companies House republishes the file on the 1st, but the exact
+    publication time varies, so early in the month only the previous
+    snapshot may exist.
     """
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     current = today.replace(day=1)
-    prev = (current - timedelta(days=1)).replace(day=1)
+    previous = (current - timedelta(days=1)).replace(day=1)
 
-    for snapshot in (current, prev):
+    for snapshot in (current, previous):
         url = BULK_URL_TEMPLATE.format(snapshot=snapshot.isoformat())
         resp = httpx.head(url, follow_redirects=True, timeout=30)
         if resp.status_code == 200:
@@ -43,16 +63,10 @@ def _current_bulk_url() -> str:
     raise RuntimeError("No Companies House bulk snapshot found for current or previous month")
 
 
-def _add_extract_metadata(df: pl.DataFrame) -> pl.DataFrame:
-    return df.with_columns(
-        pl.lit(datetime.utcnow().isoformat()).alias("_extracted_at"),
-        pl.lit(SOURCE_NAME).alias("_source"),
-    )
-
-
 def extract_bulk() -> int:
+    """Download the monthly snapshot and load it into bronze."""
     url = _current_bulk_url()
-    print(f"Downloading Companies House bulk data from {url}...")
+    log.info("Downloading Companies House bulk data from %s", url)
     resp = httpx.get(url, follow_redirects=True, timeout=600)
     resp.raise_for_status()
 
@@ -70,13 +84,14 @@ def extract_bulk() -> int:
     cache_dir.mkdir(parents=True, exist_ok=True)
     df.write_parquet(cache_dir / "basic_company_data.parquet")
 
-    df = _add_extract_metadata(df)
+    df = add_extract_metadata(df, SOURCE_NAME)
     count = load_to_bronze(df, "ch_companies")
-    print(f"Loaded {count:,} companies")
+    log.info("Loaded %s companies into bronze.ch_companies", f"{count:,}")
     return count
 
 
 def fetch_company_profile(company_number: str) -> dict | None:
+    """Fetch one company profile from the REST API; None on any miss."""
     if not COMPANIES_HOUSE_API_KEY:
         return None
     resp = httpx.get(
@@ -84,12 +99,11 @@ def fetch_company_profile(company_number: str) -> dict | None:
         auth=(COMPANIES_HOUSE_API_KEY, ""),
         timeout=30,
     )
-    if resp.status_code == 200:
-        return resp.json()
-    return None
+    return resp.json() if resp.status_code == 200 else None
 
 
 def fetch_filing_history(company_number: str, items_per_page: int = 25) -> list[dict]:
+    """Fetch the most recent filings for a company; empty list on any miss."""
     if not COMPANIES_HOUSE_API_KEY:
         return []
     resp = httpx.get(
@@ -98,52 +112,53 @@ def fetch_filing_history(company_number: str, items_per_page: int = 25) -> list[
         params={"items_per_page": items_per_page},
         timeout=30,
     )
-    if resp.status_code == 200:
-        return resp.json().get("items", [])
-    return []
+    return resp.json().get("items", []) if resp.status_code == 200 else []
 
 
 def enrich_charity_companies(company_numbers: list[str]) -> int:
+    """Pull API profiles and filing history for charity-linked companies.
+
+    Returns the number of profiles loaded. Both result sets replace
+    their bronze tables wholesale: the API is the source of truth and
+    the linked-company population is small.
+    """
     if not COMPANIES_HOUSE_API_KEY:
-        print("Skipping API enrichment: COMPANIES_HOUSE_API_KEY not set")
+        log.warning("Skipping API enrichment: COMPANIES_HOUSE_API_KEY not set")
         return 0
 
-    profiles = []
-    filings = []
+    profiles: list[dict] = []
+    filings: list[dict] = []
 
-    for i, cn in enumerate(company_numbers):
-        profile = fetch_company_profile(cn)
-        if profile:
+    for i, company_number in enumerate(company_numbers):
+        if profile := fetch_company_profile(company_number):
             profiles.append(profile)
 
-        history = fetch_filing_history(cn)
-        for filing in history:
-            filing["company_number"] = cn
+        for filing in fetch_filing_history(company_number):
+            filing["company_number"] = company_number
             filings.append(filing)
 
         if (i + 1) % 50 == 0:
-            print(f"  Enriched {i + 1}/{len(company_numbers)} companies")
+            log.info("Enriched %d/%d companies", i + 1, len(company_numbers))
 
     if profiles:
-        df_profiles = _add_extract_metadata(pl.DataFrame(profiles))
+        df_profiles = add_extract_metadata(pl.DataFrame(profiles), SOURCE_NAME)
         load_to_bronze(df_profiles, "ch_profiles", mode="replace")
-        print(f"Loaded {len(profiles)} company profiles")
+        log.info("Loaded %d company profiles into bronze.ch_profiles", len(profiles))
 
     if filings:
-        df_filings = _add_extract_metadata(pl.DataFrame(filings))
+        df_filings = add_extract_metadata(pl.DataFrame(filings), SOURCE_NAME)
         load_to_bronze(df_filings, "ch_filings", mode="replace")
-        print(f"Loaded {len(filings)} filing records")
+        log.info("Loaded %d filing records into bronze.ch_filings", len(filings))
 
     return len(profiles)
 
 
-def _resolved_company_numbers(limit: int = 500) -> list[str]:
+def _resolved_company_numbers(limit: int = ENRICHMENT_BATCH_SIZE) -> list[str]:
     """Company numbers already linked to charities by entity resolution.
 
-    Returns an empty list on the first run, before the silver layer exists.
+    Returns an empty list on the first run, before dbt has built the
+    silver layer.
     """
-    from extract.loader import get_connection
-
     con = get_connection()
     try:
         rows = con.execute(
@@ -153,21 +168,21 @@ def _resolved_company_numbers(limit: int = 500) -> list[str]:
         ).fetchall()
         return [r[0] for r in rows]
     except duckdb.CatalogException:
-        print("Entity resolution table not found yet; skipping API enrichment")
+        log.info("Entity resolution table not found yet; skipping API enrichment")
         return []
     finally:
         con.close()
 
 
-def run():
+def run() -> None:
+    """Extract the bulk snapshot, then enrich charity-linked companies."""
     extract_bulk()
 
-    company_numbers = _resolved_company_numbers()
-    if company_numbers:
+    if company_numbers := _resolved_company_numbers():
         enrich_charity_companies(company_numbers)
 
-    write_watermark(SOURCE_NAME, datetime.utcnow().isoformat())
-    print("Companies House extract complete.")
+    write_watermark(SOURCE_NAME, utc_now_iso())
+    log.info("Companies House extract complete")
 
 
 if __name__ == "__main__":
